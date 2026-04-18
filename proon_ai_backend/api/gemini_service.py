@@ -304,7 +304,9 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
 
     except Exception as exc:
         logger.exception("Gemini vision call failed: %s", exc)
-        return _build_error_result("AI service error")
+        # Include the actual exception details for debugging
+        error_msg = f"AI service error: {type(exc).__name__}"
+        return _build_error_result(error_msg)
 
 
 # ---------------------------------------------------------------------------

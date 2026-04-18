@@ -162,11 +162,12 @@ def detect_pro(request):
     try:
         gemini_result = gemini_service.analyze_image_pro(image_bytes, mime_type)
     except ValueError as e:
+        logger.error(f'Gemini Pro ValueError: {e}')
         return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except Exception as e:
-        logger.exception('Gemini Pro detection failed')
+        logger.exception(f'Gemini Pro detection failed with {type(e).__name__}: {e}')
         return Response(
-            {'error': 'AI analysis failed. Please try again.'},
+            {'error': f'AI analysis failed: {type(e).__name__}'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 

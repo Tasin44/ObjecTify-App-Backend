@@ -13,37 +13,135 @@ from api.models import PlantCategory, DetectionLabel, DetectionRule
 SEED_DATA = [
     {
         'category': {
-            'name': 'Sprouts',
-            'scientific_name': 'Brassica oleracea var. gemmifera',
-            'description': 'Brussels sprouts are a member of the Gemmifera cultivar group of wild cabbage.',
+            'name': 'Plum',
+            'scientific_name': 'Prunus domestica',
+            'description': 'Plum is a stone fruit that requires proper ripeness detection for optimal harvest quality.',
             'accuracy': 98.9,
             'latency_ms': 15,
         },
         'labels': [
             {
-                'key': 'Sprouts',
+                'key': 'unripe',
                 'rule': {
-                    'ripeness_score': 86,
-                    'ripeness_label': 'Very High',
-                    'peak_window': 'Harvest within 3–5 days',
-                    'status': 'Classified',
+                    'ripeness_score': 20,
+                    'ripeness_label': 'Not Ready',
+                    'peak_window': '3-5 days',
+                    'status': 'Unripe',
                     'quick_tips': [
-                        'Twist-test: separates clearly → ready to pick',
-                        'Cool to 0–2°C within 4h of harvest',
-                        'Avoid storing near ethylene-producing fruit',
+                        'Continue monitoring daily',
+                        'Keep plant well-watered',
+                        'Ensure adequate sunlight (6+ hours/day)',
                     ],
-                    'detection_detail': (
-                        'Brussels sprouts detected at peak ripeness. The sprout heads are firm '
-                        'and tightly packed, indicating full maturity. Optimal flavor and nutrition '
-                        'are achieved at this stage. Begin harvesting from the bottom of the stalk '
-                        'upward, as lower sprouts mature first. Delay beyond 5 days risks yellowing '
-                        'and bitterness.'
-                    ),
+                    'detection_detail': 'Buds are tightly closed with no signs of readiness. Plant requires more time to mature.',
                     'recommendations': [
-                        'Harvest from bottom of stalk upward — lower sprouts mature first',
-                        'Avoid storing near ethylene-producing produce (apples, bananas)',
-                        'Store unwashed in refrigerator for up to 5 days',
-                        'Prune yellowing leaves around sprout clusters to improve airflow',
+                        'Ensure adequate sunlight (6+ hours/day)',
+                        'Maintain soil moisture but avoid waterlogging',
+                        'Check back in 3-5 days',
+                    ],
+                    'reference_image_url': '',
+                },
+            },
+            {
+                'key': 'unaffected',
+                'rule': {
+                    'ripeness_score': 50,
+                    'ripeness_label': 'Healthy',
+                    'peak_window': '5-7 days',
+                    'status': 'Normal',
+                    'quick_tips': [
+                        'Plant is healthy and developing normally',
+                        'Monitor for any changes',
+                        'Continue regular care',
+                    ],
+                    'detection_detail': 'Plant is in good health with no visible issues. Growth is progressing normally.',
+                    'recommendations': [
+                        'Maintain current care routine',
+                        'Monitor for pest damage',
+                        'Continue regular watering',
+                    ],
+                    'reference_image_url': '',
+                },
+            },
+            {
+                'key': 'spotted',
+                'rule': {
+                    'ripeness_score': 65,
+                    'ripeness_label': 'Ready',
+                    'peak_window': '2-3 days',
+                    'status': 'Spotted',
+                    'quick_tips': [
+                        'Spots indicate ripeness',
+                        'Harvest within 24-48 hours for best quality',
+                        'Handle carefully to avoid further damage',
+                    ],
+                    'detection_detail': 'Plant shows signs of maturity with visible blemishes indicating peak ripeness.',
+                    'recommendations': [
+                        'Harvest within 24-48 hours',
+                        'Handle carefully to avoid damaging remaining spots',
+                        'Store at room temperature',
+                    ],
+                    'reference_image_url': '',
+                },
+            },
+            {
+                'key': 'rotten',
+                'rule': {
+                    'ripeness_score': 100,
+                    'ripeness_label': 'Overripe/Decaying',
+                    'peak_window': 'Harvest immediately',
+                    'status': 'Rotten',
+                    'quick_tips': [
+                        'Remove immediately to prevent spread',
+                        'Check surrounding plants',
+                        'Do not consume',
+                    ],
+                    'detection_detail': 'Plant shows signs of decay or rot. This is beyond peak ripeness and unsuitable for use.',
+                    'recommendations': [
+                        'Remove from plants immediately',
+                        'Dispose of properly',
+                        'Check nearby plants for infection',
+                    ],
+                    'reference_image_url': '',
+                },
+            },
+            {
+                'key': 'cracked',
+                'rule': {
+                    'ripeness_score': 70,
+                    'ripeness_label': 'Damaged - Harvest Soon',
+                    'peak_window': '1-2 days',
+                    'status': 'Cracked',
+                    'quick_tips': [
+                        'Cracks indicate stress or overripeness',
+                        'Harvest as soon as possible',
+                        'Use within 24 hours',
+                    ],
+                    'detection_detail': 'Plant shows visible cracks or splits. May be due to overripeness or environmental stress.',
+                    'recommendations': [
+                        'Harvest within 24 hours',
+                        'Use immediately for best quality',
+                        'Store carefully to prevent further damage',
+                    ],
+                    'reference_image_url': '',
+                },
+            },
+            {
+                'key': 'bruised',
+                'rule': {
+                    'ripeness_score': 60,
+                    'ripeness_label': 'Ripe with Damage',
+                    'peak_window': '1-2 days',
+                    'status': 'Bruised',
+                    'quick_tips': [
+                        'Bruises indicate physical damage',
+                        'Harvest and use immediately',
+                        'Handle with care',
+                    ],
+                    'detection_detail': 'Plant shows bruising from physical damage. Still usable but should be harvested soon.',
+                    'recommendations': [
+                        'Harvest immediately',
+                        'Use within 24-48 hours',
+                        'Handle very gently to prevent further damage',
                     ],
                     'reference_image_url': '',
                 },
