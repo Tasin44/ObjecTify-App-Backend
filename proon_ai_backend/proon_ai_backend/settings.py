@@ -36,7 +36,8 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.google',#for google
+    'allauth.socialaccount.providers.facebook',  # For Facebook
     'dj_rest_auth',
     'dj_rest_auth.registration',
     'rest_framework_simplejwt',
@@ -51,7 +52,21 @@ SOCIALACCOUNT_PROVIDERS = {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
         'OAUTH_PKCE_ENABLED': True,
-    }
+    },
+    'facebook': {
+            'METHOD': 'oauth2',
+            'SCOPE': ['email', 'public_profile'],
+            'FIELDS': [
+                'id',
+                'first_name',
+                'last_name',
+                'name',
+                'email',
+                'picture',
+            ],
+            'EXCHANGE_TOKEN': True,
+            'VERIFIED_EMAIL': True,
+        }
 }
 # Add these two lines as well
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
@@ -184,6 +199,13 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@proon-ai.loca
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
+}
+# JWT Configuration for dj-rest-auth,added during fb login
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_HTTPONLY': False,      # Important: allows refresh token in response body
+    'JWT_AUTH_COOKIE': None,         # Optional: don't use cookie for now
+    'JWT_AUTH_REFRESH_COOKIE': None,
 }
 
 # Logging configuration for debugging

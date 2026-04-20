@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     SignupView, VerifyOTPView, ResendOTPView, LoginView,
     LogoutView, ForgotPasswordView, ResetPasswordView, ProfileView,
-    PersonalizationView,GoogleLogin
+    PersonalizationView,GoogleLogin,FacebookLogin
 )
 
 urlpatterns = [
@@ -16,4 +16,6 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='profile'),
     path('personalization/', PersonalizationView.as_view(), name='personalization'),
     path('google/', GoogleLogin.as_view(), name='google_login'),
+
+    path('facebook/', FacebookLogin.as_view(), name='fb_login'),
 ]

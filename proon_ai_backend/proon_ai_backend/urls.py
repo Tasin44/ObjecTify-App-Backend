@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
 
+from authapp.views import FacebookLogin
 
 def social_login_success(request):
     return render(request, 'authapp/social_login_success.html')
@@ -16,6 +17,7 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),           # ← This creates the callback URL
     path('dj-rest-auth/', include('dj_rest_auth.urls')),
     path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
+    path('dj-rest-auth/facebook/', FacebookLogin.as_view(), name='fb_login'),
 ]
 
 # In development: Django serves both static and media files directly.

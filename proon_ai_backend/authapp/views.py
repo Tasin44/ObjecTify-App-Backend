@@ -17,7 +17,7 @@ from .serializers import (
     PersonalizationSerializer,
 )
 from .models import OTP, Personalization
-
+from dj_rest_auth.serializers import JWTSerializer   # ← Correct import
 User = get_user_model()
 from rest_framework import status
 
@@ -362,4 +362,29 @@ class GoogleLogin(SocialLoginView):
     client_class = OAuth2Client
     callback_url = "https://6zpmb4x8-8030.inc1.devtunnels.ms/accounts/google/login/callback/"   # your tunnel URL
     
-    
+
+from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
+from dj_rest_auth.registration.views import SocialLoginView
+
+class FacebookLogin(SocialLoginView):
+    adapter_class = FacebookOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = "https://6zpmb4x8-8030.inc1.devtunnels.ms/accounts/facebook/login/callback/"#with devtunnel it's safer to add it explicitly (same as your Google login).
+    # Add these two lines
+    #serializer_class = JWTSerializer
+    authentication_classes = []        # Important for social login
+    '''
+    Just remove serializer_class entirely — 
+    SocialLoginView handles JWT response automatically when REST_AUTH = {'USE_JWT': True} is set, which you already have in settings.
+    The combination of authentication_classes = [] + no serializer_class should work.
+
+   ❌❌ Due to the serializer_class =jwtserializer, I was getting this error 
+    {
+    "access": [
+        "This field is required."
+    ],
+    "refresh": [
+        "This field is required."
+    ]
+}
+    '''
