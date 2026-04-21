@@ -178,7 +178,16 @@ class ForgotPasswordSerializer(serializers.Serializer):
 class ResetPasswordSerializer(serializers.Serializer):
     # email = serializers.EmailField()
     # otp_code = serializers.CharField(max_length=6)
+    uid = serializers.CharField()
+    token = serializers.CharField()
     new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+    '''
+    uid and token come from the reset link URL, not from the input fields.
+    You type only new_password and confirm_password.
+    Browser auto-extracts uid and token from URL.
+    Serializer requires all 4 fields because backend needs uid + token to identify user and verify reset link.
+    '''
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

@@ -20,6 +20,12 @@ from .models import OTP, Personalization
 from dj_rest_auth.serializers import JWTSerializer   # ← Correct import
 User = get_user_model()
 from rest_framework import status
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.core.mail import send_mail
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth.tokens import default_token_generator
 
 class StandardResponseMixin:
     """Mixin for consistent API responses"""
@@ -50,6 +56,12 @@ def extract_first_error(errors):
             return messages
     return ""
 
+from rest_framework.authentication import SessionAuthentication
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return
+    
 
 class SignupView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
@@ -211,6 +223,7 @@ class LogoutView(APIView):
 class ForgotPasswordView(StandardResponseMixin, APIView):
     permission_classes = [AllowAny]
     
+    '''
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
@@ -239,11 +252,47 @@ class ForgotPasswordView(StandardResponseMixin, APIView):
             status_code=400,
             data=serializer.errors
         )
+    
+    '''
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                return self.error_response("User not found", 404)
+
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+
+            reset_link = f"https://6zpmb4x8-8030.inc1.devtunnels.ms/auth/{uid}/{token}/"
+
+            send_mail(
+                "Reset Your Password",
+                f"Click the link to reset your password:\n{reset_link}",
+                "noreply@yourdomain.com",
+                [email],
+            )
+
+            return self.success_response(
+                {"email": email},
+                message="Password reset link sent to email.",
+                status_code=200
+            )
+
+        reason = extract_first_error(serializer.errors)
+        return self.error_response(
+            f"Forgot password failed: {reason}",
+            status_code=400,
+            data=serializer.errors
+        )
 
 
 class ResetPasswordView(StandardResponseMixin, APIView):
-    permission_classes = [IsAuthenticated]  # user must be logged in via OTP verify token
-    authentication_classes = [JWTAuthentication]
+    permission_classes = [AllowAny]
 
     '''
     def post(self, request):
@@ -274,26 +323,40 @@ class ResetPasswordView(StandardResponseMixin, APIView):
     '''
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
+        
         if serializer.is_valid():
-            user = request.user  # authenticated via token from VerifyOTPView
+            uid = serializer.validated_data['uid']
+            token = serializer.validated_data['token']
             new_password = serializer.validated_data['new_password']
+            confirm_password = serializer.validated_data['confirm_password']
+
+            if new_password != confirm_password:
+                return self.error_response("Passwords do not match")
+
+            try:
+                user_id = urlsafe_base64_decode(uid).decode()
+                user = User.objects.get(pk=user_id)
+            except:
+                return self.error_response("Invalid link")
+
+            if not default_token_generator.check_token(user, token):
+                return self.error_response("Invalid or expired token")
 
             user.set_password(new_password)
-            user.save(update_fields=['password', 'updated_at'])
+            user.save()
 
-            return self.success_response(
-                {},
-                message="Password reset successful.",
-                status_code=200
-            )
-        reason = extract_first_error(serializer.errors)
-        return self.error_response(
-            f"Password reset failed:{reason}",
-            status_code=400,
-            data=serializer.errors
-        )
+            return self.success_response({}, "Password reset successful")
 
+        return self.error_response("Invalid data")
 
+from django.shortcuts import render
+
+class ResetPasswordPageView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, uid, token):
+        return render(request, 'authapp/reset_password.html')
+    
 class ProfileView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
