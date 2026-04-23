@@ -384,6 +384,14 @@ class ProfileView(StandardResponseMixin, APIView):
             data=serializer.errors,
         )
 
+    def delete(self, request):
+        request.user.delete()
+        return self.success_response(
+            {},
+            message="Account deleted successfully.",
+            status_code=200,
+        )
+
 
 class PersonalizationView(StandardResponseMixin, APIView):
     permission_classes = [IsAuthenticated]
