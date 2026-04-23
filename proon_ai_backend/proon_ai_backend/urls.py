@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render
 
-from authapp.views import FacebookLogin
+from authapp.views import FacebookLogin, GoogleLogin
 
 def social_login_success(request):
     return render(request, 'authapp/social_login_success.html')
@@ -14,6 +14,8 @@ urlpatterns = [
     path('auth/', include('authapp.urls')),
     path('api/', include('api.urls')),
     path('accounts/profile/', social_login_success),
+    # path('accounts/google/login/', GoogleLogin.as_view(), name='google_login_api'),
+    # path('accounts/facebook/login/', FacebookLogin.as_view(), name='facebook_login_api'),
     path('accounts/', include('allauth.urls')),           # ← This creates the callback URL
     path('dj-rest-auth/', include('dj_rest_auth.urls')),
     path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),

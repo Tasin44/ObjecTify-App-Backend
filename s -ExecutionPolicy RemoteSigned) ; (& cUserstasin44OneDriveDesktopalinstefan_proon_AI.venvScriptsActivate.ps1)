@@ -1,0 +1,139 @@
+warning: in the working copy of 'proon_ai_backend/proon_ai_backend/urls.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/proon_ai_backend/authapp/urls.py b/proon_ai_backend/authapp/urls.py[m
+[1mindex d1bfc6e..8cb4efc 100644[m
+[1m--- a/proon_ai_backend/authapp/urls.py[m
+[1m+++ b/proon_ai_backend/authapp/urls.py[m
+[36m@@ -2,7 +2,7 @@[m [mfrom django.urls import path[m
+ from .views import ([m
+     SignupView, VerifyOTPView, ResendOTPView, LoginView,[m
+     LogoutView, ForgotPasswordView, ResetPasswordView, ProfileView,[m
+[31m-    PersonalizationView,GoogleLogin[m
+[32m+[m[32m    PersonalizationView,GoogleLogin,FacebookLogin[m
+ )[m
+ [m
+ urlpatterns = [[m
+[36m@@ -16,4 +16,6 @@[m [murlpatterns = [[m
+     path('profile/', ProfileView.as_view(), name='profile'),[m
+     path('personalization/', PersonalizationView.as_view(), name='personalization'),[m
+     path('google/', GoogleLogin.as_view(), name='google_login'),[m
+[32m+[m
+[32m+[m[32m    path('facebook/', FacebookLogin.as_view(), name='fb_login'),[m
+ ][m
+\ No newline at end of file[m
+[1mdiff --git a/proon_ai_backend/authapp/views.py b/proon_ai_backend/authapp/views.py[m
+[1mindex 8d1727f..ee9e59f 100644[m
+[1m--- a/proon_ai_backend/authapp/views.py[m
+[1m+++ b/proon_ai_backend/authapp/views.py[m
+[36m@@ -17,7 +17,7 @@[m [mfrom .serializers import ([m
+     PersonalizationSerializer,[m
+ )[m
+ from .models import OTP, Personalization[m
+[31m-[m
+[32m+[m[32mfrom dj_rest_auth.serializers import JWTSerializer   # ← Correct import[m
+ User = get_user_model()[m
+ from rest_framework import status[m
+ [m
+[36m@@ -362,4 +362,29 @@[m [mclass GoogleLogin(SocialLoginView):[m
+     client_class = OAuth2Client[m
+     callback_url = "https://6zpmb4x8-8030.inc1.devtunnels.ms/accounts/google/login/callback/"   # your tunnel URL[m
+     [m
+[31m-    [m
+\ No newline at end of file[m
+[32m+[m
+[32m+[m[32mfrom allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter[m
+[32m+[m[32mfrom dj_rest_auth.registration.views import SocialLoginView[m
+[32m+[m
+[32m+[m[32mclass FacebookLogin(SocialLoginView):[m
+[32m+[m[32m    adapter_class = FacebookOAuth2Adapter[m
+[32m+[m[32m    client_class = OAuth2Client[m
+[32m+[m[32m    callback_url = "https://6zpmb4x8-8030.inc1.devtunnels.ms/accounts/facebook/login/callback/"#with devtunnel it's safer to add it explicitly (same as your Google login).[m
+[32m+[m[32m    # Add these two lines[m
+[32m+[m[32m    #serializer_class = JWTSerializer[m
+[32m+[m[32m    authentication_classes = []        # Important for social login[m
+[32m+[m[32m    '''[m
+[32m+[m[32m    Just remove serializer_class entirely —[m[41m [m
+[32m+[m[32m    SocialLoginView handles JWT response automatically when REST_AUTH = {'USE_JWT': True} is set, which you already have in settings.[m
+[32m+[m[32m    The combination of authentication_classes = [] + no serializer_class should work.[m
+[32m+[m
+[32m+[m[32m   ❌❌ Due to the serializer_class =jwtserializer, I was getting this error[m[41m [m
+[32m+[m[32m    {[m
+[32m+[m[32m    "access": [[m
+[32m+[m[32m        "This field is required."[m
+[32m+[m[32m    ],[m
+[32m+[m[32m    "refresh": [[m
+[32m+[m[32m        "This field is required."[m
+[32m+[m[32m    ][m
+[32m+[m[32m}[m
+[32m+[m[32m    '''[m
+\ No newline at end of file[m
+[1mdiff --git a/proon_ai_backend/proon_ai_backend/settings.py b/proon_ai_backend/proon_ai_backend/settings.py[m
+[1mindex 8a504e1..341a93d 100644[m
+[1m--- a/proon_ai_backend/proon_ai_backend/settings.py[m
+[1m+++ b/proon_ai_backend/proon_ai_backend/settings.py[m
+[36m@@ -36,7 +36,8 @@[m [mINSTALLED_APPS = [[m
+     'allauth',[m
+     'allauth.account',[m
+     'allauth.socialaccount',[m
+[31m-    'allauth.socialaccount.providers.google',[m
+[32m+[m[32m    'allauth.socialaccount.providers.google',#for google[m
+[32m+[m[32m    'allauth.socialaccount.providers.facebook',  # For Facebook[m
+     'dj_rest_auth',[m
+     'dj_rest_auth.registration',[m
+     'rest_framework_simplejwt',[m
+[36m@@ -51,7 +52,21 @@[m [mSOCIALACCOUNT_PROVIDERS = {[m
+         'SCOPE': ['profile', 'email'],[m
+         'AUTH_PARAMS': {'access_type': 'online'},[m
+         'OAUTH_PKCE_ENABLED': True,[m
+[31m-    }[m
+[32m+[m[32m    },[m
+[32m+[m[32m    'facebook': {[m
+[32m+[m[32m            'METHOD': 'oauth2',[m
+[32m+[m[32m            'SCOPE': ['email', 'public_profile'],[m
+[32m+[m[32m            'FIELDS': [[m
+[32m+[m[32m                'id',[m
+[32m+[m[32m                'first_name',[m
+[32m+[m[32m                'last_name',[m
+[32m+[m[32m                'name',[m
+[32m+[m[32m                'email',[m
+[32m+[m[32m                'picture',[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            'EXCHANGE_TOKEN': True,[m
+[32m+[m[32m            'VERIFIED_EMAIL': True,[m
+[32m+[m[32m        }[m
+ }[m
+ # Add these two lines as well[m
+ ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'[m
+[36m@@ -185,6 +200,13 @@[m [mDEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@proon-ai.loca[m
+ SIMPLE_JWT = {[m
+     'ACCESS_TOKEN_LIFETIME': timedelta(days=30),[m
+ }[m
+[32m+[m[32m# JWT Configuration for dj-rest-auth,added during fb login[m
+[32m+[m[32mREST_AUTH = {[m
+[32m+[m[32m    'USE_JWT': True,[m
+[32m+[m[32m    'JWT_AUTH_HTTPONLY': False,      # Important: allows refresh token in response body[m
+[32m+[m[32m    'JWT_AUTH_COOKIE': None,         # Optional: don't use cookie for now[m
+[32m+[m[32m    'JWT_AUTH_REFRESH_COOKIE': None,[m
+[32m+[m[32m}[m
+ [m
+ # Logging configuration for debugging[m
+ LOGGING = {[m
+[1mdiff --git a/proon_ai_backend/proon_ai_backend/urls.py b/proon_ai_backend/proon_ai_backend/urls.py[m
+[1mindex 4b07d8f..7e6f96b 100644[m
+[1m--- a/proon_ai_backend/proon_ai_backend/urls.py[m
+[1m+++ b/proon_ai_backend/proon_ai_backend/urls.py[m
+[36m@@ -4,6 +4,7 @@[m [mfrom django.conf import settings[m
+ from django.conf.urls.static import static[m
+ from django.shortcuts import render[m
+ [m
+[32m+[m[32mfrom authapp.views import FacebookLogin[m
+ [m
+ def social_login_success(request):[m
+     return render(request, 'authapp/social_login_success.html')[m
+[36m@@ -16,6 +17,7 @@[m [murlpatterns = [[m
+     path('accounts/', include('allauth.urls')),           # ← This creates the callback URL[m
+     path('dj-rest-auth/', include('dj_rest_auth.urls')),[m
+     path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),[m
+[32m+[m[32m    path('dj-rest-auth/facebook/', FacebookLogin.as_view(), name='fb_login'),[m
+ ][m
+ [m
+ # In development: Django serves both static and media files directly.[m
