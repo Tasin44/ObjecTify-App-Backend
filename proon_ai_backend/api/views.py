@@ -12,8 +12,11 @@ Endpoints:
 """
 import base64
 import logging
+import uuid
 
 from django.shortcuts import get_object_or_404
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -149,6 +152,14 @@ def detect_pro(request):
     image_b64 = serializer.validated_data['image_base64']
     mime_type = serializer.validated_data['mime_type']
 
+    # Map MIME type to extension for file storage.
+    ext_map = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+    }
+    image_ext = ext_map.get(mime_type, 'jpg')
+
     # Decode base64 image
     try:
         image_bytes = base64.b64decode(image_b64)
@@ -157,6 +168,11 @@ def detect_pro(request):
             {'error': 'Invalid base64 image data'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    # Persist uploaded image so history/detail endpoints can return image URL.
+    image_name = f"scans/pro/{uuid.uuid4().hex}.{image_ext}"
+    saved_path = default_storage.save(image_name, ContentFile(image_bytes))
+    image_url = default_storage.url(saved_path)
 
     # Call Gemini Vision
     try:
@@ -184,6 +200,7 @@ def detect_pro(request):
         detection_detail=gemini_result.get('detection_detail', ''),
         quick_tips=gemini_result.get('quick_tips', []),
         recommendations=gemini_result.get('recommendations', []),
+        image_url=image_url,
     )
 
     gemini_result['scan_id'] = str(scan.id)
@@ -382,7 +399,18 @@ def scan_history(request):
         scans = ScanHistory.objects.all()[:20]
 
     serializer = ScanHistorySerializer(scans, many=True)
-    return Response(serializer.data)
+    data = serializer.data
+    base_url = request.build_absolute_uri('/')
+
+    for item in data:
+        image_url = item.get('image_url')
+        if image_url:
+            item['image_full_url'] = image_url if image_url.startswith('http') else request.build_absolute_uri(image_url)
+        else:
+            item['image_full_url'] = None
+        item['base_url'] = base_url
+
+    return Response(data)
 
 
 @api_view(['GET'])
@@ -396,6 +424,14 @@ def scan_detail(request, scan_id):
     scan = get_object_or_404(ScanHistory, id=scan_id)
     serializer = ScanHistorySerializer(scan)
     data = serializer.data
+    base_url = request.build_absolute_uri('/')
+
+    image_url = data.get('image_url')
+    if image_url:
+        data['image_full_url'] = image_url if image_url.startswith('http') else request.build_absolute_uri(image_url)
+    else:
+        data['image_full_url'] = None
+    data['base_url'] = base_url
 
     # Include chat session ID if exists
     try:
