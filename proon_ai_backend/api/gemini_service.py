@@ -242,24 +242,14 @@ def _build_error_result(reason: str = "Analysis failed") -> dict:
 
 def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     """
-    Pro mode: send an image to Gemini Vision and get a structured detection result.
-
-    Args:
-        image_bytes: Raw image bytes (decoded, not base64).
-        mime_type:   MIME type — must be one of image/jpeg, image/png, image/webp.
-
+    Pro mode: sends image to the Apple Pruner Cloud API and gets detection results.
     Returns:
         dict matching the DetectionRule / ScanHistory structure.
-
-    Notes:
-        - Validates image size and MIME type before sending.
-        - Retries on transient Gemini errors.
-        - Falls back gracefully; NEVER raises to the caller.
     """
-    from google import genai
-    from google.genai import types
+    import base64
+    import ast
+    import requests
 
-    # --- Pre-flight validation ---
     if mime_type not in SUPPORTED_MIME_TYPES:
         logger.error("Unsupported MIME type: %s", mime_type)
         return _build_error_result(f"unsupported image type: {mime_type}")
@@ -272,41 +262,57 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
         logger.error("Image suspiciously small: %d bytes", len(image_bytes))
         return _build_error_result("image data appears to be empty or corrupt")
 
-    # --- Gemini call ---
     try:
-        client = _get_client()
-        image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
-        raw_text = _call_with_retry(
-            client=client,
-            model=GEMINI_PRIMARY,
-            contents=[PRO_VISION_SYSTEM_PROMPT, image_part],
-            fallback_model=GEMINI_FALLBACK,
+        b64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        response = requests.post(
+            "https://apple-pruner-api-34w2yszeuq-ez.a.run.app",
+            headers={"Content-Type": "application/json"},
+            json={"instances": [{"content": b64}]},
+            timeout=30
         )
-
-        clean_text = _strip_json_fences(raw_text)
-        result = json.loads(clean_text)
-        result = _validate_vision_result(result)
-
-        logger.info(
-            "Pro vision: detected '%s' with confidence=%.2f",
-            result.get("detected_label"), result.get("confidence"),
-        )
+        
+        if response.status_code != 200:
+            logger.error("Cloud API returned %s: %s", response.status_code, response.text)
+            return _build_error_result(f"Cloud API returned HTTP {response.status_code}")
+             
+        data = response.json()
+        raw = ast.literal_eval(data["results"])[0]
+        
+        confidences = raw.get("confidences", [])
+        names = raw.get("displayNames", [])
+        bboxes = raw.get("bboxes", [])
+        
+        if not confidences or not names:
+            return _build_error_result("No objects detected")
+            
+        best_idx = max(range(len(confidences)), key=lambda i: confidences[i])
+        best_conf = float(confidences[best_idx])
+        best_label = names[best_idx]
+        
+        result = {
+            "detected_label": best_label,
+            "confidence": best_conf,
+            "ripeness_score": int(best_conf * 100),
+            "ripeness_label": "Identified",
+            "peak_window": "N/A",
+            "status": "Classified",
+            "quick_tips": [f"Prune {best_label} as recommended."],
+            "detection_detail": f"Detected objects: {', '.join(set(names))}.",
+            "recommendations": ["Review the identified classes and prune accordingly."]
+        }
+        
+        # Inject the raw prediction arrays so they are mapped directly to ProDetect response
+        result["bboxes"] = bboxes
+        result["displayNames"] = names
+        result["confidences"] = confidences
+        
+        logger.info("Cloud API Vision: detected '%s' with confidence=%.2f", best_label, best_conf)
         return result
 
-    except json.JSONDecodeError as exc:
-        logger.error("Gemini returned invalid JSON: %s", exc)
-        return _build_error_result("AI returned unparseable response")
-
-    except ValueError as exc:
-        logger.error("Gemini response validation failed: %s", exc)
-        return _build_error_result(str(exc))
-
     except Exception as exc:
-        logger.exception("Gemini vision call failed: %s", exc)
-        # Include the actual exception details for debugging
-        error_msg = f"AI service error: {type(exc).__name__}"
-        return _build_error_result(error_msg)
+        logger.exception("Cloud model vision call failed: %s", exc)
+        return _build_error_result(f"AI service error: {type(exc).__name__}")
 
 
 # ---------------------------------------------------------------------------
