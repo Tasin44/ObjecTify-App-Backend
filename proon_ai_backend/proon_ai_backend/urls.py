@@ -13,6 +13,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('authapp.urls')),
     path('api/', include('api.urls')),
+    path('adminapi/', include('adminapp.urls')),
     path('accounts/profile/', social_login_success),
     # path('accounts/google/login/', GoogleLogin.as_view(), name='google_login_api'),
     # path('accounts/facebook/login/', FacebookLogin.as_view(), name='facebook_login_api'),

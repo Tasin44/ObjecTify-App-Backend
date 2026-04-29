@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'authapp',
     'api',
+    'adminapp',
     'django.contrib.sites',
     'allauth',
     'allauth.account',
