@@ -16,7 +16,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:8030,https://6zpmb4x8-8030.inc1.devtunnels.ms'
+    default='http://localhost:8030,https://6zpmb4x8-8030.inc1.devtunnels.ms,http://localhost:5173'
 ).split(',')
 
 INSTALLED_APPS = [
@@ -177,7 +177,8 @@ AUTH_USER_MODEL = 'authapp.User'
 
 # CORS — allow Flutter app (mobile) to connect
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=True, cast=bool)
-CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default='').split(',') if config('CORS_ORIGINS', default='') else []
+CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default='http://localhost:5173').split(',') if config('CORS_ORIGINS', default='') else ['http://localhost:5173']
+CORS_ALLOW_CREDENTIALS = True
 
 # Gemini AI Configuration
 # Model names and retry config are managed in api/gemini_service.py

@@ -79,3 +79,26 @@ class AdminSubscriptionSerializer(serializers.ModelSerializer):
             'amount',
             'billing_period',
         ]
+
+
+class AdminDailyCountSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    count = serializers.IntegerField()
+
+
+class AdminLast7DaysSerializer(serializers.Serializer):
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    days = AdminDailyCountSerializer(many=True)
+
+
+class AdminHourlyBucketSerializer(serializers.Serializer):
+    start_hour = serializers.IntegerField()
+    end_hour = serializers.IntegerField()
+    label = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class AdminTodayScanBucketsSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    buckets = AdminHourlyBucketSerializer(many=True)
