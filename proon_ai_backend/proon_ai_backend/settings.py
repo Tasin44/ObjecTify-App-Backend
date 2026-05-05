@@ -150,7 +150,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Files above this threshold are written to a temp file on disk during upload
 # instead of being buffered in RAM. 5 MB is a safe threshold.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024   # 5 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024   # 5 MB
+# Cap total request size; override with UPLOAD_MAX_MB env var if needed.
+UPLOAD_MAX_MB = config('UPLOAD_MAX_MB', default=200, cast=int)
+DATA_UPLOAD_MAX_MEMORY_SIZE = UPLOAD_MAX_MB * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
