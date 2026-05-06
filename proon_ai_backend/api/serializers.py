@@ -41,8 +41,8 @@ class PlantCategorySerializer(serializers.ModelSerializer):
 
 class DetectionRuleSerializer(serializers.ModelSerializer):
     label_key = serializers.CharField(source='label.label_key', read_only=True)
-    plant_name = serializers.CharField(source='label.plant_category.name', read_only=True)
-    scientific_name = serializers.CharField(source='label.plant_category.scientific_name', read_only=True)
+    plant_name = serializers.SerializerMethodField()
+    scientific_name = serializers.SerializerMethodField()
     reference_image = serializers.SerializerMethodField()
 
     class Meta:
@@ -56,6 +56,16 @@ class DetectionRuleSerializer(serializers.ModelSerializer):
 
     def get_reference_image(self, obj):
         return obj.reference_image_url or None
+
+    def get_plant_name(self, obj):
+        if obj.label and obj.label.plant_category:
+            return obj.label.plant_category.name
+        return None
+
+    def get_scientific_name(self, obj):
+        if obj.label and obj.label.plant_category:
+            return obj.label.plant_category.scientific_name
+        return None
 
 
 class ScanHistorySerializer(serializers.ModelSerializer):

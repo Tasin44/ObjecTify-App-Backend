@@ -277,6 +277,7 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
             return _build_error_result(f"Cloud API returned HTTP {response.status_code}")
              
         data = response.json()
+        logger.info("Cloud API raw response: %s", response.text)
         raw = ast.literal_eval(data["results"])[0]
         
         confidences = raw.get("confidences", [])

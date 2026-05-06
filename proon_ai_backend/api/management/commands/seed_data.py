@@ -13,161 +13,40 @@ from api.models import PlantCategory, DetectionLabel, DetectionRule
 SEED_DATA = [
     {
         'category': {
-            'name': 'Plum',
-            'scientific_name': 'Prunus domestica',
-            'description': 'Plum is a stone fruit that requires proper ripeness detection for optimal harvest quality.',
+            'name': 'Apple',
+            'scientific_name': 'Malus domestica',
+            'description': 'Apple tree used for fruit ripeness detection and monitoring.',
             'accuracy': 98.9,
             'latency_ms': 15,
         },
+        'labels': [],
+    },
+    {
+        'category': None,
         'labels': [
             {
-                'key': 'unripe',
+                'key': 'sprouts',
                 'rule': {
-                    'ripeness_score': 20,
-                    'ripeness_label': 'Not Ready',
-                    'peak_window': '3-5 days',
-                    'status': 'Unripe',
+                    'ripeness_score': 40,
+                    'ripeness_label': 'Early Growth',
+                    'peak_window': '4-7 days',
+                    'status': 'Unclassified',
                     'quick_tips': [
-                        'Continue monitoring daily',
-                        'Keep plant well-watered',
-                        'Ensure adequate sunlight (6+ hours/day)',
+                        'Keep soil moist but not waterlogged',
+                        'Ensure 6+ hours of indirect sunlight',
+                        'Monitor daily for healthy growth',
                     ],
-                    'detection_detail': 'Buds are tightly closed with no signs of readiness. Plant requires more time to mature.',
+                    'detection_detail': 'Sprouts detected. Growth is in an early stage and not yet ready for harvest.',
                     'recommendations': [
-                        'Ensure adequate sunlight (6+ hours/day)',
-                        'Maintain soil moisture but avoid waterlogging',
-                        'Check back in 3-5 days',
+                        'Maintain consistent watering schedule',
+                        'Check for pests or mold',
+                        'Recheck in 4-7 days',
                     ],
                     'reference_image_url': '',
                 },
             },
-            {
-                'key': 'unaffected',
-                'rule': {
-                    'ripeness_score': 50,
-                    'ripeness_label': 'Healthy',
-                    'peak_window': '5-7 days',
-                    'status': 'Normal',
-                    'quick_tips': [
-                        'Plant is healthy and developing normally',
-                        'Monitor for any changes',
-                        'Continue regular care',
-                    ],
-                    'detection_detail': 'Plant is in good health with no visible issues. Growth is progressing normally.',
-                    'recommendations': [
-                        'Maintain current care routine',
-                        'Monitor for pest damage',
-                        'Continue regular watering',
-                    ],
-                    'reference_image_url': '',
-                },
-            },
-            {
-                'key': 'spotted',
-                'rule': {
-                    'ripeness_score': 65,
-                    'ripeness_label': 'Ready',
-                    'peak_window': '2-3 days',
-                    'status': 'Spotted',
-                    'quick_tips': [
-                        'Spots indicate ripeness',
-                        'Harvest within 24-48 hours for best quality',
-                        'Handle carefully to avoid further damage',
-                    ],
-                    'detection_detail': 'Plant shows signs of maturity with visible blemishes indicating peak ripeness.',
-                    'recommendations': [
-                        'Harvest within 24-48 hours',
-                        'Handle carefully to avoid damaging remaining spots',
-                        'Store at room temperature',
-                    ],
-                    'reference_image_url': '',
-                },
-            },
-            {
-                'key': 'rotten',
-                'rule': {
-                    'ripeness_score': 100,
-                    'ripeness_label': 'Overripe/Decaying',
-                    'peak_window': 'Harvest immediately',
-                    'status': 'Rotten',
-                    'quick_tips': [
-                        'Remove immediately to prevent spread',
-                        'Check surrounding plants',
-                        'Do not consume',
-                    ],
-                    'detection_detail': 'Plant shows signs of decay or rot. This is beyond peak ripeness and unsuitable for use.',
-                    'recommendations': [
-                        'Remove from plants immediately',
-                        'Dispose of properly',
-                        'Check nearby plants for infection',
-                    ],
-                    'reference_image_url': '',
-                },
-            },
-            {
-                'key': 'cracked',
-                'rule': {
-                    'ripeness_score': 70,
-                    'ripeness_label': 'Damaged - Harvest Soon',
-                    'peak_window': '1-2 days',
-                    'status': 'Cracked',
-                    'quick_tips': [
-                        'Cracks indicate stress or overripeness',
-                        'Harvest as soon as possible',
-                        'Use within 24 hours',
-                    ],
-                    'detection_detail': 'Plant shows visible cracks or splits. May be due to overripeness or environmental stress.',
-                    'recommendations': [
-                        'Harvest within 24 hours',
-                        'Use immediately for best quality',
-                        'Store carefully to prevent further damage',
-                    ],
-                    'reference_image_url': '',
-                },
-            },
-            {
-                'key': 'bruised',
-                'rule': {
-                    'ripeness_score': 60,
-                    'ripeness_label': 'Ripe with Damage',
-                    'peak_window': '1-2 days',
-                    'status': 'Bruised',
-                    'quick_tips': [
-                        'Bruises indicate physical damage',
-                        'Harvest and use immediately',
-                        'Handle with care',
-                    ],
-                    'detection_detail': 'Plant shows bruising from physical damage. Still usable but should be harvested soon.',
-                    'recommendations': [
-                        'Harvest immediately',
-                        'Use within 24-48 hours',
-                        'Handle very gently to prevent further damage',
-                    ],
-                    'reference_image_url': '',
-                },
-            }
         ],
     },
-    # ---------- Add future plant models below as the client provides more labels ----------
-    # {
-    #     'category': {
-    #         'name': 'Apple',
-    #         'scientific_name': 'Malus domestica',
-    #         'description': 'Apple tree used in fruit ripeness and pruning detection.',
-    #         'accuracy': 98.9,
-    #         'latency_ms': 15,
-    #     },
-    #     'labels': [
-    #         {
-    #             'key': 'Apple_Ripe',
-    #             'rule': { ... }
-    #         },
-    #         {
-    #             'key': 'Apple_Unripe',
-    #             'rule': { ... }
-    #         },
-    #     ],
-    # },
 ]
 
 
@@ -191,15 +70,17 @@ class Command(BaseCommand):
         created_count = 0
 
         for item in SEED_DATA:
-            cat_data = item['category']
-            category, cat_created = PlantCategory.objects.update_or_create(
-                name=cat_data['name'],
-                defaults=cat_data,
-            )
-            if cat_created:
-                self.stdout.write(f'  [OK] Created category: {category.name}')
-            else:
-                self.stdout.write(f'  [UPDATE] Category: {category.name}')
+            cat_data = item.get('category')
+            category = None
+            if cat_data:
+                category, cat_created = PlantCategory.objects.update_or_create(
+                    name=cat_data['name'],
+                    defaults=cat_data,
+                )
+                if cat_created:
+                    self.stdout.write(f'  [OK] Created category: {category.name}')
+                else:
+                    self.stdout.write(f'  [UPDATE] Category: {category.name}')
 
             for label_data in item['labels']:
                 label, label_created = DetectionLabel.objects.update_or_create(
@@ -209,16 +90,17 @@ class Command(BaseCommand):
                 if label_created:
                     self.stdout.write(f'    [OK] Created label: {label.label_key}')
 
-                rule_data = label_data['rule']
-                rule, rule_created = DetectionRule.objects.update_or_create(
-                    label=label,
-                    defaults=rule_data,
-                )
-                if rule_created:
-                    self.stdout.write(f'    [OK] Created rule for: {label.label_key}')
-                    created_count += 1
-                else:
-                    self.stdout.write(f'    [UPDATE] Rule for: {label.label_key}')
+                rule_data = label_data.get('rule')
+                if rule_data:
+                    rule, rule_created = DetectionRule.objects.update_or_create(
+                        label=label,
+                        defaults=rule_data,
+                    )
+                    if rule_created:
+                        self.stdout.write(f'    [OK] Created rule for: {label.label_key}')
+                        created_count += 1
+                    else:
+                        self.stdout.write(f'    [UPDATE] Rule for: {label.label_key}')
 
         self.stdout.write(
             self.style.SUCCESS(

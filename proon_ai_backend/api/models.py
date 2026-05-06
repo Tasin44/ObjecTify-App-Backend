@@ -119,11 +119,14 @@ class DetectionLabel(models.Model):
         help_text='Must match exactly what labels.txt contains'
     )
     plant_category = models.ForeignKey(
-        PlantCategory, on_delete=models.CASCADE, related_name='labels'
+        PlantCategory, on_delete=models.CASCADE, related_name='labels',
+        null=True, blank=True
     )
 
     def __str__(self):
-        return f'{self.label_key} → {self.plant_category.name}'
+        if self.plant_category:
+            return f'{self.label_key} -> {self.plant_category.name}'
+        return self.label_key
 
 
 class DetectionRule(models.Model):

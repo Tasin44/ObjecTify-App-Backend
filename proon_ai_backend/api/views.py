@@ -69,12 +69,15 @@ def detect_lite(request):
     Response:
         Full DetectionRule as JSON + saved ScanHistory ID
     """
+    logger.info('detect_lite request data: %s', request.data)
     serializer = LiteDetectRequestSerializer(data=request.data)
     if not serializer.is_valid():
+        logger.warning('detect_lite validation errors: %s', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     label_key = serializer.validated_data['label']
     confidence = serializer.validated_data['confidence']
+    logger.info('detect_lite parsed label=%s confidence=%s', label_key, confidence)
 
     # Look up the detection label
     try:
