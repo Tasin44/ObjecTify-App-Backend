@@ -21,4 +21,6 @@ urlpatterns = [
     # Scan history
     path('history/', views.scan_history, name='history'),
     path('history/<uuid:scan_id>/', views.scan_detail, name='scan-detail'),
+
+    path('detect/pro/new/', views.detect_pro_from_url, name='detect_pro_from_url'),
 ]

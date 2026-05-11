@@ -15,6 +15,7 @@ import logging
 import uuid
 
 from django.shortcuts import get_object_or_404
+from django.db import IntegrityError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from rest_framework import status
@@ -40,6 +41,7 @@ from .serializers import (
     ScanHistorySerializer,
     PlantCategorySerializer,
     ChatMessageSerializer,
+    ProDetectUrlRequestSerializer
 )
 from . import gemini_service
 
@@ -265,6 +267,10 @@ def chat(request):
         context_data = provided_context
         context_label = provided_context.get('detected_label', '')
 
+        # Build a templated first message when starting a new session
+        # Use scan/model/labels to match client-requested phrasing
+        initial_prompt = None
+
         if scan_id:
             try:
                 scan = ScanHistory.objects.get(id=scan_id)
@@ -279,16 +285,51 @@ def chat(request):
                     'recommendations': scan.recommendations,
                 }
                 context_label = scan.detected_label
+
+                # Derive model name (lite mode uses DetectionLabel → PlantCategory)
+                model_name = "selected model"
+                if mode == ScanHistory.MODE_LITE:
+                    label_obj = DetectionLabel.objects.select_related('plant_category').filter(
+                        label_key__iexact=scan.detected_label
+                    ).first()
+                    if label_obj and label_obj.plant_category:
+                        model_name = label_obj.plant_category.name
+
+                labels = [scan.detected_label] if scan.detected_label else []
+                if labels:
+                    labels_text = ", ".join(f"{label}" for label in labels)
+                    initial_prompt = (
+                        f"I am pruning an {model_name} and I have identified {labels_text}. "
+                        "How should I proceed next?"
+                    )
+                else:
+                    initial_prompt = (
+                        f"I am pruning an {model_name} and I have not identified any labels. "
+                        "How should I proceed next?"
+                    )
             except ScanHistory.DoesNotExist:
                 pass
 
-        session = ChatSession.objects.create(
-            user=user,
-            mode=mode,
-            context_label=context_label,
-            context_data=context_data,
-            scan_id=scan_id,
-        )
+        # If we built a first-message template, replace the incoming message
+        if initial_prompt:
+            user_message = initial_prompt
+
+        try:
+            session = ChatSession.objects.create(
+                user=user,
+                mode=mode,
+                context_label=context_label,
+                context_data=context_data,
+                scan_id=scan_id,
+            )
+        except IntegrityError:
+            return Response(
+                {
+                    'error': 'Chat session already exists for this scan_id.',
+                    'hint': 'Reuse the existing session_id returned on the first /api/chat/ call.',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
 
     # Load conversation history for Gemini multi-turn
     history_msgs = session.messages.order_by('timestamp')
@@ -462,3 +503,48 @@ def health(request):
         'gemini_configured': bool(settings.GEMINI_API_KEY),
         'active_tflite_version': active_model or 'none',
     })
+
+
+import requests
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def detect_pro_from_url(request):
+    serializer = ProDetectUrlRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    image_file = serializer.validated_data['image_file']
+    mime_type = serializer.validated_data['mime_type']
+
+    # Read bytes from uploaded file
+    image_bytes = image_file.read()
+
+    # Save file (optional, for history URL)
+    image_name = f"scans/pro/{uuid.uuid4().hex}_{image_file.name}"
+    saved_path = default_storage.save(image_name, ContentFile(image_bytes))
+    image_url = request.build_absolute_uri(default_storage.url(saved_path))
+
+    # Reuse existing Pro pipeline
+    try:
+        gemini_result = gemini_service.analyze_image_pro(image_bytes, mime_type)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    user = request.user if request.user.is_authenticated else None
+    scan = ScanHistory.objects.create(
+        user=user,
+        mode=ScanHistory.MODE_PRO,
+        detected_label=gemini_result.get('detected_label', 'Unknown'),
+        confidence=gemini_result.get('confidence', 0.0),
+        ripeness_score=gemini_result.get('ripeness_score', 0),
+        ripeness_label=gemini_result.get('ripeness_label', ''),
+        peak_window=gemini_result.get('peak_window', ''),
+        detection_detail=gemini_result.get('detection_detail', ''),
+        quick_tips=gemini_result.get('quick_tips', []),
+        recommendations=gemini_result.get('recommendations', []),
+        image_url=image_url,
+    )
+
+    gemini_result['scan_id'] = str(scan.id)
+    return Response(gemini_result, status=status.HTTP_200_OK)

@@ -240,6 +240,28 @@ def _build_error_result(reason: str = "Analysis failed") -> dict:
     }
 
 
+def _build_no_identification_result() -> dict:
+    """Return the client-requested response when nothing is identified."""
+    return {
+        "detected_label": "Unknown",
+        "confidence": 0.0,
+        "ripeness_score": 0,
+        "ripeness_label": "Unknown",
+        "peak_window": "Retake photo",
+        "status": "Unclassified",
+        "quick_tips": [
+            "Remove dead wood branches",
+            "Retake the photo",
+        ],
+        "detection_detail": (
+            "No clear pruning target was identified in this image."
+        ),
+        "recommendations": [
+            "Please remove all dead wood branches and retake photo."
+        ],
+    }
+
+
 def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     """
     Pro mode: sends image to the Apple Pruner Cloud API and gets detection results.
@@ -278,29 +300,103 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
              
         data = response.json()
         logger.info("Cloud API raw response: %s", response.text)
-        raw = ast.literal_eval(data["results"])[0]
+
+        predictions = data.get("predictions", [])
+        if not predictions:
+            return _build_error_result("No predictions returned")
+
+        raw = predictions[0]
         
         confidences = raw.get("confidences", [])
         names = raw.get("displayNames", [])
         bboxes = raw.get("bboxes", [])
         
         if not confidences or not names:
-            return _build_error_result("No objects detected")
+            return _build_no_identification_result()
             
         best_idx = max(range(len(confidences)), key=lambda i: confidences[i])
         best_conf = float(confidences[best_idx])
         best_label = names[best_idx]
-        
+
+
+        # Client pruning guidance mapped to detection labels
+        label_key = str(best_label).strip().lower()
+        label_guidance = {
+            "leader": {
+                "quick_tips": [
+                    "Shorten the main leader to control height",
+                    "Keep the cut clean and angled",
+                ],
+                "recommendations": [
+                    "Principal branch. Depending on orchard type, you may need to shorten it to control height."
+                ],
+                "peak_window": "Prune to manage height",
+            },
+            "secondary": {
+                "quick_tips": [
+                    "Shorten moderately; avoid aggressive cuts",
+                    "Preserve main fruit-bearing branches",
+                ],
+                "recommendations": [
+                    "Main fruit-bearing branches. Shorten them moderately; do not prune aggressively."
+                ],
+                "peak_window": "Moderate shortening only",
+            },
+            "transfer_cut": {
+                "quick_tips": [
+                    "Cut above outward-facing buds",
+                    "Guide growth away from the center",
+                ],
+                "recommendations": [
+                    "Cut above buds facing outward. This directs growth away from the center and encourages fruit bud creation."
+                ],
+                "peak_window": "Target outward buds",
+            },
+            "water_sprout": {
+                "quick_tips": [
+                    "Prune vertical shoots immediately",
+                    "Remove energy-draining growth",
+                ],
+                "recommendations": [
+                    "Prune immediately. These vertical shoots drain energy and rarely produce fruit."
+                ],
+                "peak_window": "Prune immediately",
+            },
+            "competitive_branch": {
+                "quick_tips": [
+                    "Remove the branch shading the center",
+                    "Open the canopy for airflow",
+                ],
+                "recommendations": [
+                    "Prune the one shadowing the tree center. The canopy needs airflow and light."
+                ],
+                "peak_window": "Open canopy",
+            },
+        }
+
+        guidance = label_guidance.get(label_key)
+        if guidance is None:
+            quick_tips = [f"Prune {best_label} as recommended."]
+            recommendations = ["Review the identified classes and prune accordingly."]
+            peak_window = "N/A"
+        else:
+            quick_tips = guidance["quick_tips"]
+            recommendations = guidance["recommendations"]
+            peak_window = guidance["peak_window"]
+
         result = {
             "detected_label": best_label,
             "confidence": best_conf,
             "ripeness_score": int(best_conf * 100),
             "ripeness_label": "Identified",
-            "peak_window": "N/A",
+            #"peak_window": "N/A",
             "status": "Classified",
-            "quick_tips": [f"Prune {best_label} as recommended."],
+            #"quick_tips": [f"Prune {best_label} as recommended."],
             "detection_detail": f"Detected objects: {', '.join(set(names))}.",
-            "recommendations": ["Review the identified classes and prune accordingly."]
+            #"recommendations": ["Review the identified classes and prune accordingly."],
+            "peak_window": peak_window,
+            "quick_tips": quick_tips,
+            "recommendations": recommendations,
         }
         
         # Inject the raw prediction arrays so they are mapped directly to ProDetect response

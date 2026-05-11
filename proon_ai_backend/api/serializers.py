@@ -120,3 +120,10 @@ class ChatRequestSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=2000)
     mode = serializers.ChoiceField(choices=['lite', 'pro'])
     context = serializers.DictField(required=False, default=dict)
+
+class ProDetectUrlRequestSerializer(serializers.Serializer):
+    image_file = serializers.ImageField()
+    mime_type = serializers.ChoiceField(
+        choices=['image/jpeg', 'image/png', 'image/webp'],
+        default='image/jpeg'
+    )
