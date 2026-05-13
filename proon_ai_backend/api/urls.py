@@ -14,6 +14,7 @@ urlpatterns = [
 
     # Chatbot
     path('chat/', views.chat, name='chat'),
+    path('chat/initial-message/', views.chat_initial_message, name='chat-initial-message'),
 
     # Plant models list (for Models screen)
     path('models/', views.models_list, name='models-list'),

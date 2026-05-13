@@ -117,9 +117,16 @@ class ChatRequestSerializer(serializers.Serializer):
     """Input for POST /api/chat/"""
     session_id = serializers.UUIDField(required=False, allow_null=True)
     scan_id = serializers.UUIDField(required=False, allow_null=True)
-    message = serializers.CharField(max_length=2000)
+    message = serializers.CharField(max_length=2000, required=False, allow_blank=True)
     mode = serializers.ChoiceField(choices=['lite', 'pro'])
     context = serializers.DictField(required=False, default=dict)
+
+    def validate(self, attrs):
+        session_id = attrs.get('session_id')
+        message = (attrs.get('message') or '').strip()
+        if session_id and not message:
+            raise serializers.ValidationError({'message': 'This field may not be blank.'})
+        return attrs
 
 class ProDetectUrlRequestSerializer(serializers.Serializer):
     image_file = serializers.ImageField()

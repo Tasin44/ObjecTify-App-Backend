@@ -13,6 +13,7 @@ Endpoints:
 import base64
 import logging
 import uuid
+from io import BytesIO
 
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError
@@ -22,6 +23,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .models import (
     TFLiteModel,
@@ -46,6 +49,94 @@ from .serializers import (
 from . import gemini_service
 
 logger = logging.getLogger(__name__)
+
+
+def _resize_image_bytes(image_bytes, mime_type, max_side=1280):
+    """Downscale and recompress uploaded images for safer upstream processing."""
+    format_map = {
+        'image/jpeg': 'JPEG',
+        'image/png': 'PNG',
+        'image/webp': 'WEBP',
+    }
+    mime_by_format = {
+        'JPEG': 'image/jpeg',
+        'PNG': 'image/png',
+        'WEBP': 'image/webp',
+    }
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as img:
+            img = ImageOps.exif_transpose(img)
+            out_format = format_map.get(mime_type, img.format or 'JPEG')
+            out_mime_type = mime_by_format.get(out_format, 'image/jpeg')
+
+            width, height = img.size
+            max_dim = max(width, height)
+            if max_dim > max_side:
+                scale = max_side / float(max_dim)
+                new_size = (int(width * scale), int(height * scale))
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+            save_kwargs = {}
+            if out_format == 'JPEG':
+                if img.mode in ('RGBA', 'LA'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[-1])
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                save_kwargs.update({'quality': 85, 'optimize': True, 'progressive': True})
+            elif out_format == 'PNG':
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGBA')
+                save_kwargs.update({'optimize': True, 'compress_level': 9})
+            elif out_format == 'WEBP':
+                save_kwargs.update({'quality': 80, 'method': 6})
+
+            output = BytesIO()
+            img.save(output, format=out_format, **save_kwargs)
+            return output.getvalue(), out_mime_type
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValueError('Invalid image data') from exc
+
+
+def _extract_detected_labels(detection_detail: str) -> list:
+    if not detection_detail:
+        return []
+    text = detection_detail.strip()
+    if not text.lower().startswith("detected objects:"):
+        return []
+    detected_list = text.split(":", 1)[1]
+    return [
+        item.strip(" .")
+        for item in detected_list.split(",")
+        if item.strip(" .")
+    ]
+
+
+def _build_initial_prompt_for_scan(scan, mode: str, model_name: str = "selected model") -> str:
+    if mode == ScanHistory.MODE_LITE:
+        label_obj = DetectionLabel.objects.select_related('plant_category').filter(
+            label_key__iexact=scan.detected_label
+        ).first()
+        if label_obj and label_obj.plant_category:
+            model_name = label_obj.plant_category.name
+
+    labels = _extract_detected_labels(scan.detection_detail)
+    if not labels and scan.detected_label:
+        labels = [scan.detected_label]
+
+    if labels:
+        labels_text = ", ".join(f"{label}" for label in labels)
+        return (
+            f"I am pruning this {model_name} and I've identified {labels_text}. "
+            "How should I proceed next?"
+        )
+
+    return (
+        f"I am pruning this {model_name} and I've not identified any labels. "
+        "How should I proceed next?"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +336,7 @@ def chat(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     data = serializer.validated_data
-    user_message = data['message']
+    user_message = data.get('message', '')
     mode = data['mode']
     session_id = data.get('session_id')
     scan_id = data.get('scan_id')
@@ -286,27 +377,8 @@ def chat(request):
                 }
                 context_label = scan.detected_label
 
-                # Derive model name (lite mode uses DetectionLabel → PlantCategory)
-                model_name = "selected model"
-                if mode == ScanHistory.MODE_LITE:
-                    label_obj = DetectionLabel.objects.select_related('plant_category').filter(
-                        label_key__iexact=scan.detected_label
-                    ).first()
-                    if label_obj and label_obj.plant_category:
-                        model_name = label_obj.plant_category.name
-
-                labels = [scan.detected_label] if scan.detected_label else []
-                if labels:
-                    labels_text = ", ".join(f"{label}" for label in labels)
-                    initial_prompt = (
-                        f"I am pruning an {model_name} and I have identified {labels_text}. "
-                        "How should I proceed next?"
-                    )
-                else:
-                    initial_prompt = (
-                        f"I am pruning an {model_name} and I have not identified any labels. "
-                        "How should I proceed next?"
-                    )
+                model_name = provided_context.get('model_name') or "selected model"
+                initial_prompt = _build_initial_prompt_for_scan(scan, mode, model_name)
             except ScanHistory.DoesNotExist:
                 pass
 
@@ -361,6 +433,33 @@ def chat(request):
         'session_id': str(session.id),
         'reply': reply,
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def chat_initial_message(request):
+    """
+    GET /api/chat/initial-message/?scan_id=<uuid>&mode=pro&model_name=Apple
+
+    Returns the auto-generated first message for a new chat session.
+    """
+    scan_id = request.query_params.get('scan_id')
+    mode = request.query_params.get('mode')
+    model_name = request.query_params.get('model_name') or "selected model"
+
+    if not scan_id:
+        return Response(
+            {'error': 'scan_id is required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    scan = get_object_or_404(ScanHistory, id=scan_id)
+    if mode not in (ScanHistory.MODE_LITE, ScanHistory.MODE_PRO):
+        mode = scan.mode
+
+    message = _build_initial_prompt_for_scan(scan, mode, model_name)
+
+    return Response({'message': message}, status=status.HTTP_200_OK)
 
 
 # ---------------------------------------------------------------------------
@@ -520,8 +619,20 @@ def detect_pro_from_url(request):
     # Read bytes from uploaded file
     image_bytes = image_file.read()
 
+    # Resize/recompress before storage and upstream AI call.
+    try:
+        image_bytes, mime_type = _resize_image_bytes(image_bytes, mime_type)
+    except ValueError:
+        return Response({'error': 'Invalid image file'}, status=status.HTTP_400_BAD_REQUEST)
+
     # Save file (optional, for history URL)
-    image_name = f"scans/pro/{uuid.uuid4().hex}_{image_file.name}"
+    ext_map = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+    }
+    image_ext = ext_map.get(mime_type, 'jpg')
+    image_name = f"scans/pro/{uuid.uuid4().hex}.{image_ext}"
     saved_path = default_storage.save(image_name, ContentFile(image_bytes))
     image_url = request.build_absolute_uri(default_storage.url(saved_path))
 
