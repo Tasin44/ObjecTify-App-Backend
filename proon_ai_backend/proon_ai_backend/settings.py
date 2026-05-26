@@ -10,13 +10,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('DJANGO_SECRET_KEY', default='change-me-in-production-proon-ai-2026')
 
+ENVIRONMENT = config('ENVIRONMENT', default='local')
+
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
+if ENVIRONMENT == 'server':
+    default_allowed_hosts = 'prooning.com,www.prooning.com'
+    default_csrf_origins = 'https://prooning.com,https://www.prooning.com'
+    default_cors_origins = 'https://prooning.com,https://www.prooning.com'
+else:
+    default_allowed_hosts = 'localhost,127.0.0.1'
+    default_csrf_origins = 'http://localhost:8030,https://6zpmb4x8-8030.inc1.devtunnels.ms,http://localhost:5173'
+    default_cors_origins = 'http://localhost:5173,https://6zpmb4x8-8030.inc1.devtunnels.ms'
+
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default=default_allowed_hosts).split(',')
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:8030,https://6zpmb4x8-8030.inc1.devtunnels.ms,http://localhost:5173'
+    default=default_csrf_origins
 ).split(',')
 
 INSTALLED_APPS = [
@@ -110,19 +121,24 @@ TEMPLATES = [
 WSGI_APPLICATION = 'proon_ai_backend.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',  # Change to postgresql in production
-        'NAME': BASE_DIR / 'db.sqlite3',
-        # For PostgreSQL:
-        # 'ENGINE': 'django.db.backends.postgresql',
-        # 'NAME': config('DB_NAME', default='proon_db'),
-        # 'USER': config('DB_USER', default='proon_user'),
-        # 'PASSWORD': config('DB_PASSWORD', default=''),
-        # 'HOST': config('DB_HOST', default='localhost'),
-        # 'PORT': config('DB_PORT', default='5432'),
+if ENVIRONMENT == 'server':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='proon_db'),
+            'USER': config('DB_USER', default='proon_user'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -179,7 +195,7 @@ AUTH_USER_MODEL = 'authapp.User'
 
 # CORS — allow Flutter app (mobile) to connect
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=True, cast=bool)
-CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default='http://localhost:5173').split(',') if config('CORS_ORIGINS', default='') else ['http://localhost:5173']
+CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default=default_cors_origins).split(',') if config('CORS_ORIGINS', default='') else default_cors_origins.split(',')
 CORS_ALLOW_CREDENTIALS = True
 
 # Gemini AI Configuration
