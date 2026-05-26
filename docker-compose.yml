@@ -1,12 +1,11 @@
-version: "3.9"
-
 services:
   web:
     build: ./proon_ai_backend
+    user: "0:0"
     env_file:
       - ./proon_ai_backend/.env
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./proon_ai_backend:/app
     command: python manage.py runserver 0.0.0.0:8000
