@@ -293,9 +293,12 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
             json={"instances": [{"content": b64}]},
             timeout=30
         )
-        
+
         if response.status_code != 200:
             logger.error("Cloud API returned %s: %s", response.status_code, response.text)
+            if response.status_code == 400 and "traffic_split" in response.text:
+                logger.warning("Cloud endpoint misconfigured; falling back to Gemini vision.")
+                return _analyze_with_gemini_vision(image_bytes, mime_type)
             return _build_error_result(f"Cloud API returned HTTP {response.status_code}")
              
         data = response.json()
@@ -409,6 +412,38 @@ def analyze_image_pro(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict
 
     except Exception as exc:
         logger.exception("Cloud model vision call failed: %s", exc)
+        return _build_error_result(f"AI service error: {type(exc).__name__}")
+
+
+def _analyze_with_gemini_vision(image_bytes: bytes, mime_type: str) -> dict:
+    """Fallback vision pipeline using Gemini when the Cloud endpoint is unavailable."""
+    from google.genai import types
+
+    try:
+        client = _get_client()
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(text=PRO_VISION_SYSTEM_PROMPT),
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                ],
+            )
+        ]
+
+        raw_text = _call_with_retry(
+            client=client,
+            model=GEMINI_PRIMARY,
+            contents=contents,
+            fallback_model=GEMINI_FALLBACK,
+        )
+
+        cleaned = _strip_json_fences(raw_text)
+        parsed = json.loads(cleaned)
+        return _validate_vision_result(parsed)
+
+    except Exception as exc:
+        logger.exception("Gemini vision fallback failed: %s", exc)
         return _build_error_result(f"AI service error: {type(exc).__name__}")
 
 

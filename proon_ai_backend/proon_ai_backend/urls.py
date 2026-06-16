@@ -9,7 +9,12 @@ from authapp.views import FacebookLogin, GoogleLogin
 def social_login_success(request):
     return render(request, 'authapp/social_login_success.html')
 
+
+def base_route(request):
+    return render(request, 'api/base_route.html')
+
 urlpatterns = [
+    path('', base_route),
     path('admin/', admin.site.urls),
     path('auth/', include('authapp.urls')),
     path('api/', include('api.urls')),
