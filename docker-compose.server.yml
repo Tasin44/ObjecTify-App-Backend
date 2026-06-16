@@ -8,7 +8,7 @@ services:
       - db
     volumes:
       - staticfiles:/app/staticfiles
-      - media:/app/media
+      - ./proon_ai_backend/media:/app/media
     restart: unless-stopped
     command: gunicorn proon_ai_backend.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 120
 
@@ -32,7 +32,7 @@ services:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
       - staticfiles:/staticfiles
-      - media:/media
+      - ./proon_ai_backend/media:/media
     restart: unless-stopped
 
   certbot:
@@ -45,4 +45,3 @@ services:
 volumes:
   postgres_data:
   staticfiles:
-  media:
