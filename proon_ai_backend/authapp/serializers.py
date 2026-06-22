@@ -90,10 +90,10 @@ class SignupSerializer(serializers.Serializer):
     '''
     @staticmethod
     def send_otp_email(email, otp_code):
-        subject = "Your Verification Code – Dalil AI Tourist Guide"
+        subject = "Your Verification Code – "
         message = f"""Dear User,
 
-Thank you for registering with Dalil – Your Smart AI Travel Guide.
+Thank you for registering with proon.ing.
 
 Your One-Time Password (OTP) for email verification is:
 
@@ -101,11 +101,8 @@ Your One-Time Password (OTP) for email verification is:
 
 This code is valid for 10 minutes. Please do not share it with anyone for security reasons.
 
-If you did not create an account with Dalil, please ignore this email or contact our support team immediately.
-
 Best regards,
-The Dalil Team
-support@dalil-nl.cloud"""
+The proon.ing Team"""
         send_mail(subject, message, 'noreply@yourdomain.com', [email])
 
 
