@@ -268,7 +268,7 @@ class ForgotPasswordView(StandardResponseMixin, APIView):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
 
-            reset_link = f"https://6zpmb4x8-8030.inc1.devtunnels.ms/auth/{uid}/{token}/"
+            reset_link = f"https://prooning.com/auth/{uid}/{token}/"
 
             send_mail(
                 "Reset Your Password",
