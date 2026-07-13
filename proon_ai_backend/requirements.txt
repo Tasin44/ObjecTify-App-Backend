@@ -11,3 +11,4 @@ gunicorn>=21.2
 whitenoise>=6.6
 django-allauth>=0.61.0
 dj-rest-auth[with_social]>=5.0.2
+django-jazzmin>=3.0.1
