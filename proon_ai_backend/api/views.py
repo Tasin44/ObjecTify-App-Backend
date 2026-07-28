@@ -307,6 +307,33 @@ def detect_pro(request):
 # CHATBOT — Both Modes
 # ---------------------------------------------------------------------------
 
+# Known pruning branch/structure labels the app can detect
+_KNOWN_BRANCH_LABELS = [
+    'water_sprout',
+    'leader',
+    'secondary',
+    'competitive_branch',
+    'lateral',
+    'scaffold',
+    'spur',
+    'sucker',
+    'crossing_branch',
+    'dead_branch',
+    'diseased_branch',
+    'epicormic',
+]
+
+
+def _extract_branch_labels_from_message(message: str) -> list:
+    """Return a list of known branch label names found in the message text."""
+    message_lower = message.lower()
+    found = []
+    for label in _KNOWN_BRANCH_LABELS:
+        if label.replace('_', ' ') in message_lower or label in message_lower:
+            found.append(label)
+    return found
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def chat(request):
@@ -424,6 +451,24 @@ def chat(request):
             {'error': 'Chat service unavailable. Please try again.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+
+    # On the very first message of a new session (session_id was null),
+    # prepend a greeting that acknowledges the branches the user identified.
+    is_new_session = not data.get('session_id')
+    if is_new_session:
+        # Use the *original* user-typed message (before any template override)
+        original_message = data.get('message', '')
+        detected_branches = _extract_branch_labels_from_message(original_message)
+        if detected_branches:
+            # Format labels as a readable comma-separated list
+            branch_display = ', '.join(
+                label.replace('_', ' ') for label in detected_branches
+            )
+            greeting = (
+                f"Hello there!\n"
+                f"It's great you've identified {branch_display}.\n\n"
+            )
+            reply = greeting + reply
 
     # Save both messages
     ChatMessage.objects.create(session=session, role='user', content=user_message)
