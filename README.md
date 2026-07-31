@@ -19,15 +19,15 @@ Designed with scalability and AI-integration at its core, this architecture demo
 ## 📸 App Showcase
 
 <div align="center">
-  <img src="assets/models_screen.jpg" alt="Model Engine" width="32%" />
-  <img src="assets/scan_result.jpg" alt="Scan Detection Result" width="32%" />
-  <img src="assets/chat_assistant.jpg" alt="AI Chat Assistant" width="32%" />
+  <img src="assets/models_screen.png" alt="Model Engine" width="32%" />
+  <img src="assets/scan_result.png" alt="Scan Detection Result" width="32%" />
+  <img src="assets/chat_assistant.png" alt="AI Chat Assistant" width="32%" />
   <br>
   <p><em>From left to right: OTA Model Selection, Advanced Vision Detection, Context-Aware RAG Chatbot.</em></p>
 </div>
 <br>
 
-*(Note: Please ensure the images provided are placed in an `assets/` folder in the root of the repository with the names: `models_screen.jpg`, `scan_result.jpg`, and `chat_assistant.jpg`)*
+*(Note: Please ensure the images provided are placed in an `assets/` folder in the root of the repository with the names: `models_screen.png`, `scan_result.png`, and `chat_assistant.png`)*
 
 ---
 
