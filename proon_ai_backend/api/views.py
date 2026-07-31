@@ -409,8 +409,8 @@ def chat(request):
             except ScanHistory.DoesNotExist:
                 pass
 
-        # If we built a first-message template, replace the incoming message
-        if initial_prompt:
+        # If we built a first-message template, use it ONLY if the client didn't provide a message
+        if initial_prompt and not user_message:
             user_message = initial_prompt
 
         try:
@@ -452,23 +452,8 @@ def chat(request):
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
-    # On the very first message of a new session (session_id was null),
-    # prepend a greeting that acknowledges the branches the user identified.
-    is_new_session = not data.get('session_id')
-    if is_new_session:
-        # Use the *original* user-typed message (before any template override)
-        original_message = data.get('message', '')
-        detected_branches = _extract_branch_labels_from_message(original_message)
-        if detected_branches:
-            # Format labels as a readable comma-separated list
-            branch_display = ', '.join(
-                label.replace('_', ' ') for label in detected_branches
-            )
-            greeting = (
-                f"Hello there!\n"
-                f"It's great you've identified {branch_display}.\n\n"
-            )
-            reply = greeting + reply
+    # We no longer prepend a hardcoded greeting here because Gemini naturally provides 
+    # a much better, conversational greeting, and doing so caused duplicate "Hello there!"s.
 
     # Save both messages
     ChatMessage.objects.create(session=session, role='user', content=user_message)

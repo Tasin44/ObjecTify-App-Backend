@@ -451,60 +451,432 @@ def _analyze_with_gemini_vision(image_bytes: bytes, mime_type: str) -> dict:
 # CHATBOT — Both Modes (Lite & Pro)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Comprehensive pruning knowledge base for every detectable branch label.
+# This is injected into the chat system prompt so Gemini can give thorough,
+# expert guidance for ALL identified labels — not just one.
+# ---------------------------------------------------------------------------
+BRANCH_LABEL_KNOWLEDGE = {
+    "water_sprout": {
+        "display_name": "Water Sprout",
+        "definition": (
+            "A water sprout (also called a watersprout or epicormic shoot) is a "
+            "vigorous, fast-growing vertical shoot that emerges from latent buds on "
+            "older wood — typically on the trunk or major scaffold branches."
+        ),
+        "action": "Remove immediately by pruning flush to the parent branch.",
+        "why": (
+            "Water sprouts are unproductive — they rarely bear fruit, they grow "
+            "straight up and compete for light and nutrients, and they crowd the "
+            "canopy, reducing airflow which increases disease risk (e.g. fire blight, "
+            "powdery mildew). Removing them redirects the tree's energy to productive "
+            "fruiting wood."
+        ),
+        "tips": [
+            "Cut them as close to the base as possible without leaving a stub.",
+            "If there are many, remove the thickest/most vigorous ones first.",
+            "Inspect after heavy pruning or topping — these events trigger water sprout growth.",
+            "Remove them during the dormant season for cleanest healing, but they can be removed any time.",
+        ],
+    },
+    "leader": {
+        "display_name": "Leader (Central Leader)",
+        "definition": (
+            "The leader is the main, dominant, upward-growing branch that forms the "
+            "central axis of the tree. It is the primary structural branch from which "
+            "scaffold branches emerge."
+        ),
+        "action": (
+            "Generally, preserve the leader. Shorten it only if you need to control "
+            "the tree's overall height or if it has grown excessively beyond the "
+            "desired canopy height."
+        ),
+        "why": (
+            "The leader defines the tree's shape and structural strength. Cutting it "
+            "unnecessarily can disrupt the tree's natural form and trigger excessive "
+            "water sprout growth. However, heading the leader to a desired height is "
+            "standard practice in commercial orchards to keep fruit within picking reach."
+        ),
+        "tips": [
+            "If heading the leader, make the cut just above an outward-facing lateral branch.",
+            "After heading, select a single replacement leader if one is needed — remove competing shoots.",
+            "In central-leader training systems, the leader should be the tallest point of the tree.",
+            "For open-vase/centre training systems, the leader is removed early to encourage multiple scaffolds.",
+        ],
+    },
+    "secondary": {
+        "display_name": "Secondary Branch",
+        "definition": (
+            "Secondary branches (also called sub-scaffolds or secondary scaffolds) "
+            "grow off the main scaffold branches. They are the primary fruit-bearing "
+            "wood and form the bulk of the productive canopy."
+        ),
+        "action": (
+            "Shorten moderately if they are too long or drooping. Avoid aggressive "
+            "pruning — these branches carry the majority of your fruit crop."
+        ),
+        "why": (
+            "Secondary branches are essential for fruit production. Over-pruning them "
+            "reduces yield significantly. Light thinning and moderate shortening "
+            "encourages better fruit size and quality by improving light penetration "
+            "and air circulation within the canopy."
+        ),
+        "tips": [
+            "Tip-prune to an outward-facing bud to encourage spreading growth.",
+            "Remove any secondaries that cross over other branches or grow back toward the center.",
+            "Thin out excess secondaries to maintain good spacing (aim for 15–20 cm apart along the scaffold).",
+            "Preserve horizontal secondaries — they fruit better than vertical ones.",
+        ],
+    },
+    "competitive_branch": {
+        "display_name": "Competitive Branch",
+        "definition": (
+            "A competitive branch is one that grows at a similar angle and vigor as "
+            "the leader or a scaffold branch, essentially competing with it for "
+            "dominance. It often grows nearly vertically alongside the leader."
+        ),
+        "action": (
+            "Remove the competitive branch entirely, or shorten it significantly to "
+            "subordinate it to the dominant branch it is competing with."
+        ),
+        "why": (
+            "Two branches competing for the same space create a weak crotch angle, "
+            "shade the tree's interior, and waste energy. The narrow crotch can split "
+            "under fruit load or wind. Removing the competitor strengthens the "
+            "remaining branch and opens the canopy for light and airflow."
+        ),
+        "tips": [
+            "Between two competing branches, keep the one with the better crotch angle (ideally 45–60°).",
+            "If both are similar, keep the one growing in a direction that balances the canopy.",
+            "Make the cut clean, just outside the branch collar — do not leave a stub.",
+            "If the competitive branch has good fruit wood, consider subordinating it (shortening by 1/3) instead of removing entirely.",
+        ],
+    },
+    "lateral": {
+        "display_name": "Lateral Branch",
+        "definition": (
+            "A lateral is any side branch growing off a larger branch. In fruit trees, "
+            "laterals are where fruit spurs develop and fruit is produced."
+        ),
+        "action": (
+            "Retain productive laterals. Thin out crowded, crossing, or downward-growing "
+            "laterals. Tip-prune long laterals to encourage branching and spur formation."
+        ),
+        "why": (
+            "Laterals are the workhorse of fruit production. Proper management ensures "
+            "good light distribution, prevents overcrowding, and encourages the "
+            "development of fruiting spurs."
+        ),
+        "tips": [
+            "Keep laterals that grow outward and slightly upward for best fruit production.",
+            "Remove laterals that hang straight down — they produce poor-quality fruit.",
+            "Space laterals evenly around the branch for balanced light exposure.",
+        ],
+    },
+    "scaffold": {
+        "display_name": "Scaffold Branch",
+        "definition": (
+            "Scaffold branches are the main structural limbs that radiate from the "
+            "trunk or leader. They form the permanent framework of the tree."
+        ),
+        "action": (
+            "Preserve scaffolds. Only prune to correct structure, remove damaged wood, "
+            "or reduce length if they are extending too far."
+        ),
+        "why": (
+            "Scaffolds are the tree's skeleton — losing one means losing a large "
+            "portion of the canopy and years of growth. Pruning scaffolds should be "
+            "done conservatively and deliberately."
+        ),
+        "tips": [
+            "Ideal scaffold angle is 45–60° from the trunk for strength and productivity.",
+            "Maintain 3–5 well-spaced scaffolds for a balanced, open canopy.",
+            "Never remove more than one major scaffold in a single season.",
+        ],
+    },
+    "spur": {
+        "display_name": "Fruiting Spur",
+        "definition": (
+            "A spur is a short, stubby twig (usually 1–5 cm) that produces fruit "
+            "buds. Spurs are the primary fruiting structures on many fruit trees "
+            "(apple, pear, cherry, almond)."
+        ),
+        "action": (
+            "Preserve healthy spurs. Thin out old, unproductive, or overcrowded spurs "
+            "to improve fruit size and quality."
+        ),
+        "why": (
+            "Spurs produce your fruit. Overcrowded spurs lead to small, poor-quality "
+            "fruit. Thinning spurs allows the tree to put more energy into fewer, "
+            "larger, higher-quality fruits."
+        ),
+        "tips": [
+            "On older trees, thin spur clusters to 2–3 buds per cluster.",
+            "Remove spurs on the underside of branches — they get the least light.",
+            "Some varieties are 'tip bearers' not 'spur bearers' — know your variety before spur-pruning.",
+        ],
+    },
+    "sucker": {
+        "display_name": "Sucker",
+        "definition": (
+            "A sucker is a shoot that grows from the rootstock, below the graft union, "
+            "or directly from the root system. It is genetically different from the "
+            "desired variety."
+        ),
+        "action": "Remove immediately by tearing or cutting as close to the root origin as possible.",
+        "why": (
+            "Suckers drain energy from the grafted variety, never produce the desired "
+            "fruit, and can eventually overtake the tree if left unchecked. Tearing "
+            "(rather than cutting) removes latent buds and reduces regrowth."
+        ),
+        "tips": [
+            "Check below the graft union — any growth there is a sucker.",
+            "Remove suckers as soon as they appear; small ones are easier to tear off.",
+            "Avoid damaging the trunk or root bark when removing.",
+        ],
+    },
+    "crossing_branch": {
+        "display_name": "Crossing Branch",
+        "definition": (
+            "A crossing branch grows inward across other branches, rubbing against "
+            "them and creating wounds that invite disease."
+        ),
+        "action": "Remove the crossing branch to prevent rubbing wounds and improve airflow.",
+        "why": (
+            "Where branches rub, the bark is damaged, creating entry points for fungal "
+            "infections and pests. Crossing branches also shade the interior and reduce "
+            "air circulation."
+        ),
+        "tips": [
+            "Between two crossing branches, remove the weaker or less well-positioned one.",
+            "Make the cut back to the parent branch or to an outward-facing bud.",
+        ],
+    },
+    "dead_branch": {
+        "display_name": "Dead Branch (Dead Wood)",
+        "definition": (
+            "A dead branch is any branch that has died — identifiable by brittle wood, "
+            "no buds, peeling bark, or lack of green cambium under the bark."
+        ),
+        "action": "Remove completely. Cut back to healthy wood or to the branch collar.",
+        "why": (
+            "Dead wood harbors disease organisms and pests, can break and damage "
+            "healthy wood below it, and wastes the tree's energy as it tries to "
+            "compartmentalize the dead tissue."
+        ),
+        "tips": [
+            "Dead wood can be removed at any time of year — no need to wait for dormancy.",
+            "If a large branch is partially dead, cut back to where you see healthy, green cambium.",
+            "Sanitize pruning tools after cutting diseased dead wood.",
+        ],
+    },
+    "diseased_branch": {
+        "display_name": "Diseased Branch",
+        "definition": (
+            "A diseased branch shows signs of infection — cankers, discoloration, "
+            "oozing sap, wilting, or unusual growths."
+        ),
+        "action": (
+            "Remove by cutting at least 15–30 cm (6–12 inches) below the visible edge of "
+            "the infection into clean, healthy wood."
+        ),
+        "why": (
+            "Diseased branches spread infection to the rest of the tree. Prompt removal "
+            "limits the spread and protects the overall health of the tree."
+        ),
+        "tips": [
+            "ALWAYS sanitize pruning tools between cuts (10% bleach solution or 70% isopropyl alcohol).",
+            "Dispose of diseased wood away from the orchard — do not compost it.",
+            "Check for signs of systemic disease (e.g. fire blight) and consult an arborist if unsure.",
+        ],
+    },
+    "epicormic": {
+        "display_name": "Epicormic Shoot",
+        "definition": (
+            "An epicormic shoot grows from dormant buds embedded in the bark of the "
+            "trunk or major branches, similar to water sprouts but often triggered by "
+            "stress, heavy pruning, or damage."
+        ),
+        "action": "Remove unless the tree needs regrowth in that area to rebuild canopy.",
+        "why": (
+            "Like water sprouts, epicormic shoots are typically unproductive and crowd "
+            "the canopy. However, after severe storm damage or heavy pruning, a few "
+            "well-placed epicormic shoots may be retained to rebuild the canopy."
+        ),
+        "tips": [
+            "If retaining one for canopy rebuilding, choose the best-positioned shoot and remove the rest.",
+            "Monitor annually — they tend to regrow.",
+        ],
+    },
+    "transfer_cut": {
+        "display_name": "Transfer Cut",
+        "definition": (
+            "A transfer cut is a pruning technique where you cut a branch back to a "
+            "lateral branch or outward-facing bud to redirect growth in a desired "
+            "direction."
+        ),
+        "action": (
+            "Make the cut just above an outward-facing bud or lateral branch to direct "
+            "new growth away from the tree's center."
+        ),
+        "why": (
+            "Transfer cuts shape the tree and encourage an open canopy. By cutting to "
+            "an outward-facing bud, you direct new growth outward, improving light "
+            "penetration and air circulation."
+        ),
+        "tips": [
+            "Angle the cut slightly away from the bud to prevent water pooling on the bud.",
+            "Choose a bud that points in the direction you want new growth to go.",
+            "Transfer cuts are especially useful for reshaping overgrown trees.",
+        ],
+    },
+}
+
+
 # fmt: off
 _CHAT_SYSTEM_BASE = """\
-You are Proon AI — a friendly, knowledgeable plant care and pruning assistant.
+You are Proon AI — a friendly, expert pruning and plant care assistant.
 
-SCAN CONTEXT (do not repeat this block verbatim to the user)
+SCAN CONTEXT
 =============================================================
 Plant:         {detected_label}
-Ripeness:      {ripeness_label} ({ripeness_score}%)
-Peak window:   {peak_window}
+Detection:     {detection_detail}
 {tips_section}
 {detail_section}
 
+PRUNING KNOWLEDGE FOR IDENTIFIED LABELS
+=============================================================
+{labels_knowledge}
+
 INSTRUCTIONS
 ============
-- Answer the user's question concisely and helpfully, drawing on the scan context above.
+- This is the user's first message after scanning their plant. They have identified
+  specific branch types and are asking how to proceed.
+- You MUST provide detailed, expert pruning guidance for EVERY label/branch type the
+  user mentions. Do not skip any. Do not just pick one to talk about.
+- For EACH identified label, explain:
+    1. What it is (brief definition)
+    2. What action to take (prune, keep, shorten, etc.)
+    3. Why that action is important
+    4. Practical tips for doing it correctly
+- Structure your response clearly — use the label name as a heading or introductory
+  phrase for each section so the user can follow along easily.
+- After addressing all labels, provide a brief overall summary or priority order
+  (e.g., "Start by removing the water sprouts first, then address the competitive branch...").
+- Be warm, practical, and expert. Write as if you are a seasoned orchardist mentoring
+  the user through their pruning session.
+- Use plain text (no markdown, no bullet symbols like * or -). Use line breaks and
+  spacing to organize your response since the app renders plain text.
+- Aim for a thorough, comprehensive response. Do not be brief or vague. The user
+  expects detailed, professional-level guidance.
 - If the question is unrelated to plants, pruning, or gardening, politely redirect.
-- Do NOT read out the full scan summary unless the user explicitly asks.
-- Keep responses under 150 words unless a detailed explanation is requested.
-- Use plain text (no markdown) in your replies since the app renders plain text.
-- Be warm, expert, and practical.
 """
 # fmt: on
 
 _LITE_TIPS_SECTION = """\
 Quick tips:
-{tips_formatted}
-Detection detail: {detection_detail}"""
+{tips_formatted}"""
 
-_PRO_TIPS_SECTION = """\
-Detection detail: {detection_detail}"""
+_PRO_TIPS_SECTION = """
+"""
 
 
-def _build_chat_system_prompt(mode: str, context: dict) -> str:
+def _extract_labels_from_detection_detail(detection_detail: str) -> list:
+    """Extract individual label names from a detection_detail string like 'Detected objects: water_sprout, leader, secondary'."""
+    if not detection_detail:
+        return []
+    text = detection_detail.strip()
+    if not text.lower().startswith("detected objects:"):
+        return []
+    detected_list = text.split(":", 1)[1]
+    return [
+        item.strip(" .")
+        for item in detected_list.split(",")
+        if item.strip(" .")
+    ]
+
+
+def _extract_labels_from_text(text: str) -> list:
+    """Extract individual label names from text based on known keys."""
+    if not text:
+        return []
+    text_lower = text.lower()
+    found = []
+    for label_key in BRANCH_LABEL_KNOWLEDGE.keys():
+        if label_key in text_lower or label_key.replace('_', ' ') in text_lower:
+            found.append(label_key)
+    return found
+
+
+def _build_labels_knowledge_section(labels: list) -> str:
+    """Build a detailed knowledge section for all identified labels."""
+    if not labels:
+        return "No specific branch labels identified."
+
+    sections = []
+    # Use a set to avoid duplicate sections if a label was extracted multiple ways
+    seen = set()
+    for label in labels:
+        label_key = label.strip().lower().replace(" ", "_")
+        if label_key in seen:
+            continue
+        seen.add(label_key)
+        
+        knowledge = BRANCH_LABEL_KNOWLEDGE.get(label_key)
+        if knowledge:
+            tips_text = "\n".join(f"  - {t}" for t in knowledge.get("tips", []))
+            section = (
+                f"{knowledge['display_name']}\n"
+                f"  Definition: {knowledge['definition']}\n"
+                f"  Action: {knowledge['action']}\n"
+                f"  Why: {knowledge['why']}\n"
+                f"  Tips:\n{tips_text}"
+            )
+            sections.append(section)
+        else:
+            sections.append(
+                f"{label}\n"
+                f"  No specific guidance available for this label. "
+                f"Provide general pruning best practices."
+            )
+
+    return "\n\n".join(sections)
+
+
+def _build_chat_system_prompt(mode: str, context: dict, user_message: str = "") -> str:
     """Compose the system prompt string for a chat session."""
     tips = context.get("quick_tips", [])
-    tips_formatted = "\n".join(f"  • {t}" for t in tips) if tips else "  • No tips available"
+    tips_formatted = "\n".join(f"  - {t}" for t in tips) if tips else "  - No tips available"
 
     if mode == "lite":
         tips_section = _LITE_TIPS_SECTION.format(
             tips_formatted=tips_formatted,
-            detection_detail=context.get("detection_detail", "Not available"),
         )
     else:
-        tips_section = _PRO_TIPS_SECTION.format(
-            detection_detail=context.get("detection_detail", "Gemini-analysed image"),
-        )
+        tips_section = _PRO_TIPS_SECTION
+
+    # Extract all detected labels and build knowledge section
+    detection_detail = context.get("detection_detail", "")
+    labels = _extract_labels_from_detection_detail(detection_detail)
+    
+    if user_message:
+        labels.extend(_extract_labels_from_text(user_message))
+
+    # Also include the primary detected_label if not already in the list
+    primary_label = context.get("detected_label", "")
+    if primary_label:
+        primary_key = primary_label.strip().lower().replace(" ", "_")
+        if not any(l.strip().lower().replace(" ", "_") == primary_key for l in labels):
+            labels.append(primary_label)
+
+    labels_knowledge = _build_labels_knowledge_section(labels)
 
     return _CHAT_SYSTEM_BASE.format(
         detected_label=context.get("detected_label", "Unknown plant"),
-        ripeness_label=context.get("ripeness_label", "Unknown"),
-        ripeness_score=context.get("ripeness_score", 0),
-        peak_window=context.get("peak_window", "N/A"),
+        detection_detail=detection_detail or "Not available",
         tips_section=tips_section,
-        detail_section="",  # already embedded in tips_section above
+        detail_section="",
+        labels_knowledge=labels_knowledge,
     )
 
 
@@ -590,7 +962,7 @@ def chat_with_gemini(
 
     try:
         client = _get_client()
-        system_prompt = _build_chat_system_prompt(mode, context)
+        system_prompt = _build_chat_system_prompt(mode, context, user_message)
         contents = _build_contents_for_chat(system_prompt, history, user_message)
 
         reply = _call_with_retry(
