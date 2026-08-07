@@ -9,6 +9,7 @@ Endpoints:
   GET  /api/model/version/     — Active TFLite release info (OTA model delivery)
   GET  /api/history/           — User's scan history
   GET  /api/history/<scan_id>/ — Single scan detail
+  PATCH /api/history/<scan_id>/ — Update scan image URLs only
 """
 import base64
 import logging
@@ -586,15 +587,66 @@ def scan_history(request):
     return Response(data)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([AllowAny])
 def scan_detail(request, scan_id):
     """
-    GET /api/history/<scan_id>/
+    GET   /api/history/<scan_id>/
+        Returns a single scan result with its chat session if it exists.
 
-    Returns a single scan result with its chat session if it exists.
+    PATCH /api/history/<scan_id>/
+        Re-uploads the scan image via multipart/form-data.
+        Required field:
+            image  — the new image file (JPEG, PNG, or WEBP)
+        Response: { scan_id, image_url, image_full_url }
     """
     scan = get_object_or_404(ScanHistory, id=scan_id)
+
+    # ── PATCH ──────────────────────────────────────────────────────────────
+    if request.method == 'PATCH':
+        image_file = request.FILES.get('image')
+        if not image_file:
+            return Response(
+                {'error': 'Provide an image file in the "image" field (multipart/form-data).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Determine extension from content-type header or file name
+        mime_type = image_file.content_type or 'image/jpeg'
+        ext_map = {
+            'image/jpeg': 'jpg',
+            'image/png':  'png',
+            'image/webp': 'webp',
+        }
+        image_ext = ext_map.get(mime_type, 'jpg')
+
+        # Read, resize/recompress, then persist
+        image_bytes = image_file.read()
+        try:
+            image_bytes, mime_type = _resize_image_bytes(image_bytes, mime_type)
+        except ValueError:
+            return Response(
+                {'error': 'Invalid or unreadable image file.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        image_name = f"scans/updates/{uuid.uuid4().hex}.{image_ext}"
+        saved_path = default_storage.save(image_name, ContentFile(image_bytes))
+        image_url = request.build_absolute_uri(default_storage.url(saved_path))
+
+        scan.image_url = image_url
+        scan.save(update_fields=['image_url'])
+
+        return Response(
+            {
+                'scan_id': str(scan.id),
+                'image_url': image_url,
+                'image_full_url': image_url,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # ── GET ────────────────────────────────────────────────────────────────
     serializer = ScanHistorySerializer(scan)
     data = serializer.data
     base_url = request.build_absolute_uri('/')
@@ -613,6 +665,7 @@ def scan_detail(request, scan_id):
         data['chat_session_id'] = None
 
     return Response(data)
+
 
 
 # ---------------------------------------------------------------------------
